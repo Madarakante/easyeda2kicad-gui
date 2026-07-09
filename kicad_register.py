@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 import json
 import shutil
 from pathlib import Path
@@ -49,8 +50,7 @@ def resolve_output(output_setting: str):
 def find_kicad_config_dirs():
     """Return list of (version, dir) for every KiCad config dir that has a
     sym-lib-table, newest version last."""
-    appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
-    root = Path(appdata) / "kicad"
+    root = kicad_config_root()
     found = []
     if root.is_dir():
         for d in sorted(root.iterdir()):
@@ -59,19 +59,40 @@ def find_kicad_config_dirs():
     return found
 
 
-def kicad_is_running() -> bool:
-    """Best-effort check for a running KiCad process (Windows)."""
-    try:
-        import subprocess
+def kicad_config_root() -> Path:
+    """Platform-specific base folder that holds KiCad's per-version config dirs.
 
-        flags = 0
+    Windows: %APPDATA%\\kicad
+    macOS:   ~/Library/Preferences/kicad
+    Linux:   $XDG_CONFIG_HOME/kicad  (default ~/.config/kicad)
+    """
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Preferences" / "kicad"
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+        return Path(appdata) / "kicad"
+    xdg = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+    return Path(xdg) / "kicad"
+
+
+def kicad_is_running() -> bool:
+    """Best-effort check for a running KiCad process, on any OS."""
+    import subprocess
+
+    try:
         if os.name == "nt":
-            flags = 0x08000000  # CREATE_NO_WINDOW
+            out = subprocess.run(
+                ["tasklist"],
+                capture_output=True,
+                text=True,
+                creationflags=0x08000000,  # CREATE_NO_WINDOW
+            ).stdout.lower()
+            return "kicad" in out
+        # macOS / Linux: list process command names
         out = subprocess.run(
-            ["tasklist"],
+            ["ps", "-A", "-o", "comm"],
             capture_output=True,
             text=True,
-            creationflags=flags,
         ).stdout.lower()
         return "kicad" in out
     except Exception:  # noqa: BLE001

@@ -14,6 +14,7 @@ import sys
 import queue
 import logging
 import threading
+import subprocess
 import json
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -102,12 +103,19 @@ class App:
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _set_icon(self):
-        # app.ico sits next to the script, or in the PyInstaller temp dir when frozen.
+        # Icon files sit next to the script, or in the PyInstaller temp dir when frozen.
         base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
-        ico = os.path.join(base, "app.ico")
         try:
-            if os.path.exists(ico):
-                self.root.iconbitmap(ico)
+            if os.name == "nt":
+                ico = os.path.join(base, "app.ico")
+                if os.path.exists(ico):
+                    self.root.iconbitmap(ico)
+            else:
+                # iconbitmap(.ico) is unreliable on Linux/macOS; use a PNG.
+                png = os.path.join(base, "app.png")
+                if os.path.exists(png):
+                    self._icon_img = tk.PhotoImage(file=png)  # keep a ref
+                    self.root.iconphoto(True, self._icon_img)
         except tk.TclError:
             pass
 
@@ -306,7 +314,12 @@ class App:
             messagebox.showinfo(APP_TITLE, f"Folder doesn't exist yet:\n{base}")
             return
         try:
-            os.startfile(str(base))  # noqa: SIM115  (Windows)
+            if sys.platform == "darwin":
+                subprocess.run(["open", str(base)])
+            elif os.name == "nt":
+                os.startfile(str(base))  # noqa: SIM115  (Windows only)
+            else:
+                subprocess.run(["xdg-open", str(base)])
         except Exception as e:  # noqa: BLE001
             messagebox.showerror(APP_TITLE, str(e))
 

@@ -14,7 +14,7 @@ a = Analysis(
     ["easyeda2kicad_gui.py"],
     pathex=[],
     binaries=e2k_binaries,
-    datas=e2k_datas + [("app.ico", ".")],
+    datas=e2k_datas + [("app.ico", "."), ("app.png", ".")],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

@@ -40,3 +40,7 @@ d.line([170, 183, 187, 160], fill=(255, 255, 255, 255), width=6)
 sizes = [(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)]
 img.save("app.ico", format="ICO", sizes=sizes)
 print("wrote app.ico with sizes:", sizes)
+
+# PNG for the window icon on Linux/macOS (Tk iconphoto).
+img.save("app.png", format="PNG")
+print("wrote app.png")

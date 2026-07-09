@@ -1,6 +1,7 @@
 # EasyEDA2KiCad GUI
 
-A simple Windows desktop GUI for importing **LCSC / EasyEDA parts into KiCad**.
+A simple cross-platform desktop GUI (**Windows, Linux, macOS**) for importing
+**LCSC / EasyEDA parts into KiCad**.
 
 It is a graphical front-end for the excellent command-line tool
 [**easyeda2kicad**](https://github.com/uPesy/easyeda2kicad.py) by *uPesy* — you
@@ -51,8 +52,16 @@ instead.
 ## What "Register with KiCad" changes (and how it's kept safe)
 
 KiCad does **not** scan folders for libraries — it reads config files. So to make
-your imported parts appear, this tool edits, **per installed KiCad version**
-(found under `%APPDATA%\kicad\<version>\`):
+your imported parts appear, this tool edits, **per installed KiCad version**,
+the config files in KiCad's settings folder:
+
+| OS | KiCad settings folder |
+| --- | --- |
+| Windows | `%APPDATA%\kicad\<version>\` |
+| macOS | `~/Library/Preferences/kicad/<version>/` |
+| Linux | `$XDG_CONFIG_HOME/kicad/<version>/` (default `~/.config/kicad/<version>/`) |
+
+In each it changes:
 
 | File | Change |
 | --- | --- |
@@ -77,34 +86,49 @@ To undo a registration, restore the `.e2k-bak` files or remove the
 
 ---
 
+## Platform support
+
+| | From source (Python) | Prebuilt download |
+| --- | --- | --- |
+| **Windows** | ✅ | ✅ (zip on the Releases page) |
+| **Linux** | ✅ | build it yourself with `build.sh` |
+| **macOS** | ✅ | build it yourself with `build.sh` |
+
+The Python code is fully cross-platform (KiCad paths, "open folder", process
+detection, and the window icon all adapt to the OS). Only the **prebuilt binary**
+is Windows-only, because **PyInstaller cannot cross-compile** — a native Linux or
+macOS app must be built *on* that OS (one command, see below).
+
 ## Requirements
 
-- **Windows** (uses `.ico`, `os.startfile`, and edits `%APPDATA%\kicad`).
-- To run **from source**: Python 3.9+ and the `easyeda2kicad` package.
-- To run the **prebuilt app**: nothing — Python and easyeda2kicad are bundled
-  inside the executable.
+- To run **from source** (any OS): Python 3.9+ and the `easyeda2kicad` package.
+  `tkinter` ships with Python on Windows/macOS; on some Linux distros install it
+  separately (e.g. `sudo apt install python3-tk`).
+- To run the **prebuilt Windows app**: nothing — Python and easyeda2kicad are
+  bundled inside the executable.
 
 ---
 
 ## How to run
 
-### Option A — Run the prebuilt app (easiest)
+### Option A — Prebuilt Windows app (easiest, Windows only)
 
-1. Build it once (see *Building* below) or grab the `dist\EasyEDA2KiCad` folder.
-2. Double-click **`EasyEDA2KiCad.exe`** inside that folder, or use the desktop
-   shortcut created by `create_shortcut.bat`.
+1. Download the zip from the [Releases](../../releases) page and extract it.
+2. Open the `EasyEDA2KiCad` folder and double-click **`EasyEDA2KiCad.exe`**
+   (keep the `_internal` folder beside it). Optionally run `create_shortcut.bat`
+   for a Desktop shortcut.
 
 No Python installation is required for this — everything is bundled.
 
-### Option B — Run from source (Python)
+### Option B — Run from source (Windows, Linux, macOS)
 
 ```bash
 pip install easyeda2kicad
-python easyeda2kicad_gui.py
+python easyeda2kicad_gui.py     # or: python3 easyeda2kicad_gui.py
 ```
 
 That's it. The GUI uses only the Python standard library (`tkinter`) plus
-`easyeda2kicad`.
+`easyeda2kicad`. On Debian/Ubuntu you may first need `sudo apt install python3-tk`.
 
 ### Then, in the app
 
@@ -121,24 +145,34 @@ That's it. The GUI uses only the Python standard library (`tkinter`) plus
 ## Building the desktop app yourself
 
 Requires [PyInstaller](https://pyinstaller.org/) (and Pillow only if you want to
-regenerate the icon).
+regenerate the icons). **Build on the OS you want to target** — PyInstaller does
+not cross-compile.
 
 ```bash
 pip install pyinstaller pillow easyeda2kicad
+```
 
-# (optional) regenerate the app icon
-python make_icon.py
+**Windows:**
 
-# build the one-folder app  ->  dist\EasyEDA2KiCad\EasyEDA2KiCad.exe
+```bat
 build.bat
-#   or:  python -m PyInstaller easyeda2kicad_gui.spec --noconfirm
-
-# (optional) create a Desktop shortcut to the built app
+:: or:  python -m PyInstaller easyeda2kicad_gui.spec --noconfirm
+:: optional Desktop shortcut:
 create_shortcut.bat
 ```
 
-The result is a **one-folder** build: distribute the whole `dist\EasyEDA2KiCad`
-folder (the `.exe` needs the `_internal` folder beside it).
+**Linux / macOS:**
+
+```bash
+chmod +x build.sh
+./build.sh
+# or:  python3 -m PyInstaller easyeda2kicad_gui.spec --noconfirm
+```
+
+The result is a **one-folder** build. On Windows you get
+`dist\EasyEDA2KiCad\EasyEDA2KiCad.exe`; on Linux/macOS,
+`dist/EasyEDA2KiCad/EasyEDA2KiCad`. Distribute the whole `dist/EasyEDA2KiCad`
+folder — the executable needs the `_internal` folder beside it.
 
 ---
 
@@ -148,11 +182,11 @@ folder (the `.exe` needs the `_internal` folder beside it).
 | --- | --- |
 | `easyeda2kicad_gui.py` | The GUI (Tkinter). Runs easyeda2kicad in-process and streams its output. |
 | `kicad_register.py` | Logic that registers the library into KiCad's config (with backups). |
-| `make_icon.py` | Generates `app.ico` (needs Pillow). |
+| `make_icon.py` | Generates `app.ico` + `app.png` (needs Pillow). |
 | `easyeda2kicad_gui.spec` | PyInstaller build recipe (one-folder, windowed, icon). |
-| `build.bat` | Convenience wrapper to build the app. |
-| `create_shortcut.bat` | Creates a Desktop shortcut to the built app. |
-| `app.ico` | Application icon. |
+| `build.bat` / `build.sh` | Build the app on Windows / on Linux–macOS. |
+| `create_shortcut.bat` | Creates a Desktop shortcut to the built app (Windows). |
+| `app.ico` / `app.png` | Application icon (Windows / Linux–macOS). |
 | `LICENSE` | GNU AGPL-3.0. |
 
 Build outputs (`build/`, `dist/`), caches, and the generated

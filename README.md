@@ -90,14 +90,17 @@ To undo a registration, restore the `.e2k-bak` files or remove the
 
 | | From source (Python) | Prebuilt download |
 | --- | --- | --- |
-| **Windows** | ✅ | ✅ (zip on the Releases page) |
-| **Linux** | ✅ | build it yourself with `build.sh` |
-| **macOS** | ✅ | build it yourself with `build.sh` |
+| **Windows** | ✅ | ✅ [Releases](../../releases) |
+| **Linux** | ✅ | ✅ [Releases](../../releases) |
+| **macOS** (Apple Silicon) | ✅ | ✅ [Releases](../../releases) |
 
 The Python code is fully cross-platform (KiCad paths, "open folder", process
-detection, and the window icon all adapt to the OS). Only the **prebuilt binary**
-is Windows-only, because **PyInstaller cannot cross-compile** — a native Linux or
-macOS app must be built *on* that OS (one command, see below).
+detection, and the window icon all adapt to the OS).
+
+Prebuilt binaries for all three platforms are produced by GitHub Actions
+(`.github/workflows/build.yml`) on each version tag — because **PyInstaller
+cannot cross-compile**, each is genuinely built on its own OS runner. Intel-Mac
+or other-arch users can build locally with `build.sh` (one command, see below).
 
 ## Requirements
 
@@ -111,14 +114,20 @@ macOS app must be built *on* that OS (one command, see below).
 
 ## How to run
 
-### Option A — Prebuilt Windows app (easiest, Windows only)
+### Option A — Prebuilt app (easiest)
 
-1. Download the zip from the [Releases](../../releases) page and extract it.
-2. Open the `EasyEDA2KiCad` folder and double-click **`EasyEDA2KiCad.exe`**
-   (keep the `_internal` folder beside it). Optionally run `create_shortcut.bat`
-   for a Desktop shortcut.
+Download your platform's archive from the [Releases](../../releases) page and
+extract it. Keep the `_internal` folder next to the executable — it won't run
+without it. No Python installation is required; everything is bundled.
 
-No Python installation is required for this — everything is bundled.
+- **Windows** (`...-windows-x64.zip`): double-click `EasyEDA2KiCad.exe`.
+  Optionally run `create_shortcut.bat` for a Desktop shortcut. SmartScreen may
+  warn on first run (unsigned) → *More info → Run anyway*.
+- **Linux** (`...-linux-x64.tar.gz`): `tar -xzf` it, then run
+  `./EasyEDA2KiCad/EasyEDA2KiCad`.
+- **macOS** (`...-macos-arm64.zip`): unzip, then run
+  `./EasyEDA2KiCad/EasyEDA2KiCad`. Gatekeeper may block an unsigned app →
+  right-click → *Open*, or `xattr -dr com.apple.quarantine EasyEDA2KiCad`.
 
 ### Option B — Run from source (Windows, Linux, macOS)
 
@@ -187,6 +196,7 @@ folder — the executable needs the `_internal` folder beside it.
 | `build.bat` / `build.sh` | Build the app on Windows / on Linux–macOS. |
 | `create_shortcut.bat` | Creates a Desktop shortcut to the built app (Windows). |
 | `app.ico` / `app.png` | Application icon (Windows / Linux–macOS). |
+| `.github/workflows/build.yml` | CI that builds Windows/Linux/macOS apps and attaches them to each tagged release. |
 | `LICENSE` | GNU AGPL-3.0. |
 
 Build outputs (`build/`, `dist/`), caches, and the generated

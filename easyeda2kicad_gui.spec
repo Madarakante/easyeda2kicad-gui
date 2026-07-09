@@ -2,7 +2,11 @@
 # PyInstaller spec for the EasyEDA2KiCad GUI (one-folder, windowed).
 # Build with:  python -m PyInstaller easyeda2kicad_gui.spec --noconfirm
 
+import sys
 from PyInstaller.utils.hooks import collect_all, collect_submodules
+
+# Only Windows uses the .ico here; macOS expects .icns and Linux ignores it.
+APP_ICON = "app.ico" if sys.platform.startswith("win") else None
 
 # Bundle easyeda2kicad fully: its data files (default footprint/3d templates),
 # submodules, and any hidden imports it pulls in.
@@ -41,7 +45,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon="app.ico",
+    icon=APP_ICON,
 )
 
 coll = COLLECT(

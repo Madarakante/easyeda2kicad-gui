@@ -1,0 +1,73 @@
+name: Build apps
+
+# Builds standalone one-folder apps for Windows, Linux and macOS.
+# - On a version tag (v*) it also attaches the archives to that GitHub Release.
+# - Can be run manually from the Actions tab (artifacts only, no release).
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create/update the Release
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: EasyEDA2KiCad-windows-x64.zip
+          - os: ubuntu-latest
+            artifact: EasyEDA2KiCad-linux-x64.tar.gz
+          - os: macos-latest
+            artifact: EasyEDA2KiCad-macos-arm64.zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Tk (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y python3-tk
+
+      - name: Install build dependencies
+        run: python -m pip install --upgrade pip pyinstaller pillow easyeda2kicad
+
+      - name: Generate icons
+        run: python make_icon.py
+
+      - name: Build app
+        run: python -m PyInstaller easyeda2kicad_gui.spec --noconfirm
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/EasyEDA2KiCad -DestinationPath ${{ matrix.artifact }}
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: cd dist && zip -r ../${{ matrix.artifact }} EasyEDA2KiCad
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: tar -czf ${{ matrix.artifact }} -C dist EasyEDA2KiCad
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+      - name: Attach to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact }}

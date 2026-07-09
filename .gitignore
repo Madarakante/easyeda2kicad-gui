@@ -1,0 +1,22 @@
+# Build artifacts
+/build/
+/dist/
+*.spec.bak
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# App runtime / generated
+.e2k_gui.json
+.easyeda_cache/
+*.e2k-bak
+
+# Local scratch / user data (not part of the app)
+/easyeda2kicad/
+/footprintss/
+
+# OS
+Thumbs.db
+Desktop.ini

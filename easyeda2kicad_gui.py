@@ -10,6 +10,7 @@ Run:
 """
 
 import os
+import re
 import sys
 import queue
 import logging
@@ -61,15 +62,94 @@ class _QueueLogHandler(logging.Handler):
             pass
 
 
+# Matches easyeda2kicad's own error line so we can explain the failure.
+_FETCH_FAIL_RE = re.compile(r"Failed to fetch data from EasyEDA API for part (\S+)")
+
+_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+
+
+def diagnose_lcsc(lcsc_id):
+    """Classify why a part failed: ('notfound' | 'network' | 'unknown', detail)."""
+    import ssl
+    import json as _json
+    import urllib.request
+    import urllib.error
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    url = f"https://easyeda.com/api/products/{lcsc_id}/components"
+    req = urllib.request.Request(url, headers={"User-Agent": _UA, "Referer": "https://easyeda.com/"})
+    try:
+        with urllib.request.urlopen(req, timeout=12, context=ctx) as r:
+            data = _json.loads(r.read().decode("utf-8", "replace"))
+        if data.get("success") and data.get("result"):
+            return "unknown", "The API has data for this part but the import still failed."
+        return "notfound", (data.get("message") or "Component not found")
+    except urllib.error.URLError as e:
+        return "network", str(getattr(e, "reason", e))
+    except Exception as e:  # noqa: BLE001
+        return "unknown", str(e)
+
+
+def _explain_failure(lcsc_id):
+    """Return a friendly multi-line explanation for a failed part import."""
+    kind, detail = diagnose_lcsc(lcsc_id)
+    bar = "─" * 60
+    if kind == "notfound":
+        return (
+            f"\n{bar}\n"
+            f"⚠  {lcsc_id} could not be imported — EasyEDA has no CAD model for it.\n"
+            f"   (LCSC may list the part, but no symbol/footprint exists in EasyEDA,\n"
+            f"    so easyeda2kicad has nothing to convert. Common for modules,\n"
+            f"    connectors, mechanical and some newer parts.)\n\n"
+            f"   Try instead:\n"
+            f"     • Search the part on lcsc.com for an alternate C-number that has an EasyEDA model\n"
+            f"     • Get a KiCad library from SnapEDA, Ultra Librarian, or ComponentSearchEngine\n"
+            f"     • Draw the symbol & footprint from the datasheet\n"
+            f"{bar}\n"
+        )
+    if kind == "network":
+        return (
+            f"\n{bar}\n"
+            f"⚠  {lcsc_id} could not be imported — couldn't reach the EasyEDA API.\n"
+            f"   ({detail})\n\n"
+            f"   Try instead:\n"
+            f"     • Check your internet connection / VPN / proxy\n"
+            f"     • Wait a moment and run the import again\n"
+            f"{bar}\n"
+        )
+    return (
+        f"\n{bar}\n"
+        f"⚠  {lcsc_id} could not be imported. ({detail})\n"
+        f"   Double-check the LCSC part number, then try again.\n"
+        f"{bar}\n"
+    )
+
+
 def run_easyeda2kicad(argv, log_queue):
     """Run easyeda2kicad in-process, streaming its output to log_queue.
 
-    Returns the integer exit code (0 = success)."""
+    Returns the integer exit code (0 = success). On failure, appends a friendly
+    explanation for any part that EasyEDA could not provide."""
     import easyeda2kicad.__main__ as e2k
+
+    failed_ids = []
+
+    class _CapturingHandler(_QueueLogHandler):
+        def emit(self, record):
+            msg = record.getMessage()
+            m = _FETCH_FAIL_RE.search(msg)
+            if m:
+                failed_ids.append(m.group(1))
+            super().emit(record)
 
     # Attach our handler to the root logger so easyeda2kicad's logging reaches us.
     root = logging.getLogger()
-    handler = _QueueLogHandler(log_queue)
+    handler = _CapturingHandler(log_queue)
     handler.setFormatter(logging.Formatter(fmt="[{levelname}] {message}", style="{"))
     root.addHandler(handler)
     prev_level = root.level
@@ -79,11 +159,19 @@ def run_easyeda2kicad(argv, log_queue):
     sys.stdout = sys.stderr = writer
     try:
         rc = e2k.main(argv)
-        return int(rc) if rc is not None else 0
+        rc = int(rc) if rc is not None else 0
     finally:
         sys.stdout, sys.stderr = old_out, old_err
         root.removeHandler(handler)
         root.setLevel(prev_level)
+
+    # Explain any fetch failures (done after restoring stdout).
+    for lcsc_id in dict.fromkeys(failed_ids):  # de-dupe, keep order
+        try:
+            log_queue.put(("line", _explain_failure(lcsc_id)))
+        except Exception:  # noqa: BLE001
+            pass
+    return rc
 
 
 class App:
@@ -329,9 +417,14 @@ class App:
                 kind, payload = self.log_queue.get_nowait()
                 if kind == "line":
                     low = payload.lower()
-                    tag = "err" if ("error" in low or "traceback" in low or "failed" in low) else None
-                    if tag is None and ("success" in low or "written" in low or "created" in low):
+                    if "⚠" in payload or "could not be imported" in low:
+                        tag = "err"
+                    elif "error" in low or "traceback" in low or "failed" in low:
+                        tag = "err"
+                    elif "success" in low or "written" in low or "created" in low:
                         tag = "ok"
+                    else:
+                        tag = None
                     self._append(payload, tag)
                 elif kind == "done":
                     rc = payload

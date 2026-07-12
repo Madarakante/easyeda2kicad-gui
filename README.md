@@ -9,6 +9,8 @@ type an LCSC part number, tick what you want (symbol / footprint / 3D model),
 and it downloads and converts the part into a KiCad library. It can also
 **register that library with KiCad for you** so the parts show up automatically.
 
+![EasyEDA2KiCad GUI — the main window](docs/screenshot.png)
+
 > **Transparency note:** This tool does two things that touch your system —
 > it **writes library files** to your Documents folder, and (only when you click
 > *Register with KiCad*) it **edits KiCad's configuration files**. Exactly what
